@@ -4,9 +4,10 @@ Accrue, redeem, expire and reverse loyalty points with a fully auditable,
 append-only ledger, and generate a large, reproducible synthetic dataset from
 the same rules.
 
-> Status: **work in progress.** Rules engine, synthetic generator, labelled
-> anomalies, detector and validation suite are done and tested. JSON/SQL
-> export, checksum manifest and data dictionary are next (see Roadmap).
+> Status: **work in progress.** Rules engine, generator, labelled anomalies,
+> detector, validation suite, CSV/JSON/SQL export, checksum manifest and
+> reproducibility check are done and tested. Data dictionary and ER diagram
+> are next (see Roadmap).
 
 ## Quick start
 
@@ -25,19 +26,30 @@ Generate data:
 python -m loyalty.cli generate --scale starter            # 2,000 customers / 10,000 orders
 python -m loyalty.cli generate --scale full               # 20,000 customers / 100,000 orders
 python -m loyalty.cli generate --scale full --seed 42     # different seed
-python -m loyalty.cli validate out/starter                # re-check the CSV files on disk
+python -m loyalty.cli validate out/starter                # re-check files on disk (+ checksums)
+python -m loyalty.cli reproduce --scale starter           # build twice, compare every checksum
 ```
 
-Both commands exit with code 1 if any validation check FAILs.
+`generate` and `validate` exit with code 1 if any validation check FAILs
+(`validate` also fails if any file differs from `manifest.json`); `reproduce`
+exits with 1 if any file differs between the two runs.
 
 `--customers` / `--orders` override the preset sizes; `--seed` defaults to `20261022`;
 `--anomalies-per-type N` sets how many issues are planted (default customers/200, min 5);
-`--no-anomalies` produces clean data only.
+`--no-anomalies` produces clean data only; `--formats csv,json,sqlite,sql` picks
+outputs (default all - a full-scale build with every format is ~800 MB, so
+`--formats csv` is handy when space matters).
 
 Output layout - the answer key is deliberately kept apart from the data:
 
 ```
+out/<scale>/README.md                        what is in the folder and the command that made it
+out/<scale>/manifest.json                    command, seed, provenance, row counts, SHA-256 of every file
 out/<scale>/data/*.csv                       the dataset (15 tables)
+out/<scale>/json/*.json                      same tables as JSON (money as exact decimal strings)
+out/<scale>/sql/loyalty.db                   SQLite, every PK / FK / CHECK constraint enforced
+out/<scale>/sql/loyalty_seed.sql             schema + INSERTs, replay with: sqlite3 new.db < loyalty_seed.sql
+out/<scale>/sql/schema.sql                   the DDL on its own
 out/<scale>/labels/ground_truth.csv|.json    planted issues (never joined into data)
 out/<scale>/reports/validation_summary.md    every validation check with PASS / EXPECTED / FAIL
 out/<scale>/reports/validation_results.json  same, machine-readable, with sample violating IDs
@@ -145,6 +157,33 @@ key, duplicate ID or wrong points calculation each produce FAIL.
 `validate` re-reads the CSV files from disk with their types, so it checks
 the actual deliverable, not just in-memory objects.
 
+### Export, manifest and reproducibility (export.py, schema.sql)
+
+- **CSV / JSON:** one file per table, parents before children. JSON keeps
+  integers and booleans native and money as exact decimal strings (no float rounding).
+- **SQLite:** loaded with `PRAGMA foreign_keys = ON` and every key, uniqueness
+  and CHECK rule from `schema.sql`. Foreign keys are `DEFERRABLE INITIALLY
+  DEFERRED` because two links are circular (redemption <-> its ledger row,
+  reversal -> accrual), so the whole load is one transaction checked at
+  COMMIT - the database itself refuses data with a broken key or an
+  impossible value (tests prove both). Every foreign-key column is indexed:
+  the first full-scale load hung because SQLite scans an unindexed child
+  column for every parent insert (quadratic); with indexes the load time grows
+  linearly (measured ~9x time for 10x rows).
+- **SQL seed script:** schema + INSERTs in parent-to-child order, written from
+  the in-memory rows. (SQLite's own `iterdump` orders tables alphabetically and
+  inserts children before their parents exist - found and fixed while testing
+  the replay.) Replaying it gives a database identical row-for-row to `loyalty.db`.
+- **manifest.json:** canonical regenerate command, seed, parameters, Python
+  version, provenance (100% synthetic, no external data), row counts and
+  columns per table, and size + SHA-256 of every file. It has **no wall-clock
+  timestamp** on purpose so that it is itself reproducible.
+- **reproduce:** builds the dataset twice into separate folders and compares
+  every file's checksum and every table's row count; writes
+  `reproducibility_report.json`. Verified at full scale: all 40 files (~0.8 GB,
+  including the 205 MB SQLite database and 284 MB SQL seed script) are
+  byte-identical across two runs.
+
 ## Business rules and assumptions
 
 - Qualifying spend = line price x quantity - line discount, for eligible
@@ -170,11 +209,12 @@ the actual deliverable, not just in-memory objects.
 
 ```
 src/loyalty/   config.py, models.py, ids.py, engine.py, generator.py,
-               anomalies.py, detect.py, validate.py, export.py, cli.py
+               anomalies.py, detect.py, validate.py, export.py, cli.py, schema.sql
 tests/         test_engine_example.py (hand-worked example + edge cases)
                test_generator.py (reproducibility + rule invariants on generated data)
                test_anomalies.py (labels isolated, no leakage, all planted issues detected)
                test_validate.py (clean passes, planted = EXPECTED, real bugs FAIL, CSV round trip)
+               test_export.py (byte-identical reruns, SQLite constraints, SQL replay, tamper detection)
 docs/          worked_example.md
 ai_usage/      prompt history and AI-use disclosure
 ```
@@ -186,5 +226,5 @@ ai_usage/      prompt history and AI-use disclosure
 - [x] Labelled anomaly injection + separate `ground_truth.csv`
 - [x] Anomaly detector scored against ground truth (precision / recall)
 - [x] Validation suite (PK/FK, enums, dates, reconciliation, lifecycle, duplicates)
-- [ ] Export CSV / JSON / SQLite + SQL, manifest with checksums, reproducibility check
+- [x] Export CSV / JSON / SQLite + SQL, manifest with checksums, reproducibility check
 - [ ] Data dictionary and ER diagram

@@ -49,3 +49,9 @@ typed by me, in order. Responses are not included (optional per the FAQ).
     if they ask any questions i'll able to answer
 20. What next?
 21. https://github.com/Aryan-44/loyalty-ledger *(asked to connect and push)*
+
+## Session 1 (cont.): export, manifest and reproducibility
+
+22. Yes, start export
+23. What are you doing now?
+24. Yes, commit & push

@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Auditable loyalty points ledger and synthetic data generator"
 requires-python = ">=3.11"
 
+[tool.setuptools.package-data]
+loyalty = ["schema.sql"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
