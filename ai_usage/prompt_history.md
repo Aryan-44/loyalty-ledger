@@ -26,3 +26,9 @@ typed by me, in order. Responses are not included (optional per the FAQ).
     be resolved" warnings in the test file.)*
 11. Yes, remove it *(the sys.path workaround in the test file)*
 12. Yes, commit it
+
+## Session 1 (cont.): synthetic data generator
+
+13. kummithiaryan@gmail.com, this is my mail
+    Yes, start generator
+14. Yes, commit it

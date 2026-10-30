@@ -42,6 +42,9 @@ class LoyaltyEngine:
         self.tiers = sorted(tiers or config.TIERS, key=lambda t: t.rank)
         self.tier_by_id = {t.tier_id: t for t in self.tiers}
         self.rules = rules or config.RULES
+        self._rules_by_type = defaultdict(list)
+        for rule in self.rules:
+            self._rules_by_type[rule.rule_type].append(rule)
         self.rewards = {r.reward_id: r for r in (rewards or config.REWARDS)}
         self.ids = ids or IdFactory()
 
@@ -122,7 +125,7 @@ class LoyaltyEngine:
         order = Order(order_id, account_id, order_at, channel, "COMPLETED", merchandise,
                       qualifying, tax, shipping, merchandise + tax + shipping, tier_id)
         self.orders[order_id] = order
-        self._orders_by_account[account_id].append(order_id)
+        self._orders_by_account[account_id].append((order_at, order_id))
         self._net_qualifying[order_id] = qualifying
 
         if total_points > 0:
@@ -136,6 +139,19 @@ class LoyaltyEngine:
 
         self._review_tier(acc, order_at, trigger_ref=order_id)
         return order
+
+    def award_bonus(self, account_id: str, at: datetime, rule_type: str) -> PointsTransaction:
+        """Non-purchase points (welcome, birthday). Creates a lot like any accrual."""
+        self._advance_clock(at)
+        acc = self.accounts[account_id]
+        rule = self._rule(rule_type, at)
+        expiry_rule = self._rule("POINTS_EXPIRY", at)
+        txn = self._post(acc, "BONUS", int(rule.value), at,
+                         expires_on=at + timedelta(days=int(expiry_rule.value)))
+        self._add_lot(txn)
+        self.transaction_rules.append(TransactionRule(txn.txn_id, rule.rule_id))
+        self.transaction_rules.append(TransactionRule(txn.txn_id, expiry_rule.rule_id))
+        return txn
 
     def return_items(self, order_id: str, line_no: int, quantity: int,
                      returned_at: datetime) -> OrderReturn:
@@ -246,10 +262,16 @@ class LoyaltyEngine:
         return batch
 
     def review_tiers(self, as_of: datetime) -> None:
-        """Periodic re-check so tiers drop when old spend leaves the window."""
+        """Periodic re-check so tiers drop when old spend leaves the window.
+
+        Accounts already at the lowest tier are skipped: time passing can only
+        lower spend, and upgrades are already handled when an order is placed.
+        """
         self._advance_clock(as_of)
+        base = self.tiers[0].tier_id
         for acc in self.accounts.values():
-            self._review_tier(acc, as_of, trigger_ref="TIER_REVIEW")
+            if acc.current_tier_id != base:
+                self._review_tier(acc, as_of, trigger_ref="TIER_REVIEW")
 
     # ----------------------------------------------------------------- queries
 
@@ -263,8 +285,8 @@ class LoyaltyEngine:
     def qualifying_spend(self, account_id: str, as_of: datetime) -> Decimal:
         window = timedelta(days=int(self._rule("TIER_WINDOW", as_of).value))
         start = as_of - window
-        return sum((self._net_qualifying[o] for o in self._orders_by_account[account_id]
-                    if start < self.orders[o].order_at <= as_of), Decimal("0"))
+        return sum((self._net_qualifying[o] for at, o in self._orders_by_account[account_id]
+                    if start < at <= as_of), Decimal("0"))
 
     # ---------------------------------------------------------------- internals
 
@@ -332,20 +354,20 @@ class LoyaltyEngine:
                                                account_id, ref_id, at, detail))
 
     def _rule(self, rule_type: str, at: datetime):
-        for rule in self.rules:
-            if rule.rule_type == rule_type and rule.is_effective(at):
+        for rule in self._rules_by_type[rule_type]:
+            if rule.is_effective(at):
                 return rule
         raise LookupError(f"no effective {rule_type} rule at {at}")
 
     def _earn_rule(self, tier_id: str, at: datetime):
-        for rule in self.rules:
-            if rule.rule_type == "EARN_RATE" and rule.tier_id == tier_id and rule.is_effective(at):
+        for rule in self._rules_by_type["EARN_RATE"]:
+            if rule.tier_id == tier_id and rule.is_effective(at):
                 return rule
         raise LookupError(f"no EARN_RATE rule for {tier_id} at {at}")
 
     def _category_rule(self, rule_type: str, category: str, at: datetime):
-        for rule in self.rules:
-            if rule.rule_type == rule_type and rule.category == category and rule.is_effective(at):
+        for rule in self._rules_by_type[rule_type]:
+            if rule.category == category and rule.is_effective(at):
                 return rule
         return None
 

@@ -24,6 +24,8 @@ TIERS = [
 #   CATEGORY_MULTIPLIER points for this category multiplied while the rule is effective
 #   POINTS_EXPIRY       days an accrual lot stays valid
 #   TIER_WINDOW         rolling window (days) of qualifying spend used for tier
+#   ENROLLMENT_BONUS    points granted once when a member joins
+#   BIRTHDAY_BONUS      points granted on the member's birthday each year
 RULES = [
     Rule("RULE-001", "EARN_RATE", "Bronze earns 10 pts per INR 100", Decimal("10"),
          PROGRAM_START, tier_id="TIER-BRONZE"),
@@ -42,6 +44,10 @@ RULES = [
          Decimal("365"), PROGRAM_START),
     Rule("RULE-008", "TIER_WINDOW", "Tier uses qualifying spend of the last 365 days",
          Decimal("365"), PROGRAM_START),
+    Rule("RULE-009", "ENROLLMENT_BONUS", "Welcome bonus when joining", Decimal("200"),
+         PROGRAM_START),
+    Rule("RULE-010", "BIRTHDAY_BONUS", "Bonus on the member's birthday", Decimal("300"),
+         PROGRAM_START),
 ]
 
 REWARDS = [
@@ -51,4 +57,6 @@ REWARDS = [
     Reward("RWD-004", "INR 500 voucher", 5000),
     Reward("RWD-005", "Branded coffee mug", 800, min_tier_id="TIER-SILVER"),
     Reward("RWD-006", "Airport lounge pass", 8000, min_tier_id="TIER-GOLD"),
+    Reward("RWD-007", "INR 10 off next order", 100),
+    Reward("RWD-008", "Free coffee", 200),
 ]

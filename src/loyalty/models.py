@@ -47,6 +47,7 @@ class Customer:
     email: str
     city: str
     signup_date: datetime
+    birth_date: datetime | None = None
 
 
 @dataclass(slots=True)
@@ -110,7 +111,7 @@ class OrderReturn:
 class PointsTransaction:
     txn_id: str
     account_id: str
-    txn_type: str  # ACCRUAL | REVERSAL | REDEMPTION | EXPIRY | ADJUSTMENT
+    txn_type: str  # ACCRUAL | BONUS | REVERSAL | REDEMPTION | EXPIRY | ADJUSTMENT
     points: int    # signed: + earns, - spends
     created_at: datetime
     balance_after: int
@@ -118,7 +119,7 @@ class PointsTransaction:
     redemption_id: str | None = None
     expiry_batch_id: str | None = None
     reverses_txn_id: str | None = None
-    expires_on: datetime | None = None  # only on ACCRUAL rows (a "lot")
+    expires_on: datetime | None = None  # only on ACCRUAL/BONUS rows (a "lot")
 
 
 @dataclass(slots=True)
