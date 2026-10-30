@@ -5,8 +5,8 @@ append-only ledger, and generate a large, reproducible synthetic dataset from
 the same rules.
 
 > Status: **work in progress.** Rules engine, synthetic generator, labelled
-> anomalies and detector are done and tested. Full validation suite and
-> JSON/SQL export are next (see Roadmap).
+> anomalies, detector and validation suite are done and tested. JSON/SQL
+> export, checksum manifest and data dictionary are next (see Roadmap).
 
 ## Quick start
 
@@ -25,7 +25,10 @@ Generate data:
 python -m loyalty.cli generate --scale starter            # 2,000 customers / 10,000 orders
 python -m loyalty.cli generate --scale full               # 20,000 customers / 100,000 orders
 python -m loyalty.cli generate --scale full --seed 42     # different seed
+python -m loyalty.cli validate out/starter                # re-check the CSV files on disk
 ```
+
+Both commands exit with code 1 if any validation check FAILs.
 
 `--customers` / `--orders` override the preset sizes; `--seed` defaults to `20261022`;
 `--anomalies-per-type N` sets how many issues are planted (default customers/200, min 5);
@@ -36,6 +39,8 @@ Output layout - the answer key is deliberately kept apart from the data:
 ```
 out/<scale>/data/*.csv                       the dataset (15 tables)
 out/<scale>/labels/ground_truth.csv|.json    planted issues (never joined into data)
+out/<scale>/reports/validation_summary.md    every validation check with PASS / EXPECTED / FAIL
+out/<scale>/reports/validation_results.json  same, machine-readable, with sample violating IDs
 out/<scale>/reports/findings.csv             what the detector flagged
 out/<scale>/reports/detection_metrics.json   precision / recall per issue type
 ```
@@ -111,6 +116,35 @@ a rule-based detector checking deterministic rule violations: its job here is
 to prove every planted issue is observable from the data alone and that the
 baseline is clean. It would not catch issues outside these five rules.
 
+### Validation suite (validate.py)
+
+75 checks that read the data tables only. Each returns the rows that break it.
+
+| Category | Examples |
+|---|---|
+| Primary keys (PK, ID) | every table's key present and unique (incl. composite keys of bridge tables); ID formats; `LOY-<customer-id>`; 1:1 customer-account; year inside IDs matches the record date |
+| Foreign keys (FK) | 26 relationships incl. optional ones (`reverses_txn_id`, `redemption.txn_id`, ...); a return's line belongs to its order |
+| Allowed values (EN) | status/type/reason enums; points sign by type; each transaction type carries exactly its required references; quantity/price/discount ranges |
+| Date order (DT) | no activity before enrolment; returns after orders; lot expiry = earn date + 365 days and never expired early; ledger in time order; lots earned before they are spent |
+| Reconciliation (AR) | order totals; **line points recomputed from the rules table**; one accrual per order; running balances; balance = ledger; debits fully backed by lots; lot never over-consumed; reversals = owed points; batch totals |
+| Lifecycle (LC) | order status vs returned quantities; redemption APPROVED/REJECTED state; reversal links; expire-once; tier history chain; tier follows thresholds |
+| Duplicates (DU) | unique emails, redemption request keys, one debit per redemption, no identical ledger rows |
+
+Because the dataset contains planted issues on purpose, each result is classified:
+
+- **PASS** - no violations.
+- **EXPECTED** - violations exist, but every one is on an account labelled
+  with the planted issue the check is designed to catch.
+- **FAIL** - at least one violation is not explained by a label: a real bug.
+
+On generated data: clean runs give 75 PASS; with anomalies, 69 PASS +
+6 EXPECTED + 0 FAIL. Tests also prove the negative cases: the same data
+without labels gives 6 FAIL, and an unlabelled balance drift, broken foreign
+key, duplicate ID or wrong points calculation each produce FAIL.
+
+`validate` re-reads the CSV files from disk with their types, so it checks
+the actual deliverable, not just in-memory objects.
+
 ## Business rules and assumptions
 
 - Qualifying spend = line price x quantity - line discount, for eligible
@@ -136,10 +170,11 @@ baseline is clean. It would not catch issues outside these five rules.
 
 ```
 src/loyalty/   config.py, models.py, ids.py, engine.py, generator.py,
-               anomalies.py, detect.py, export.py, cli.py
+               anomalies.py, detect.py, validate.py, export.py, cli.py
 tests/         test_engine_example.py (hand-worked example + edge cases)
                test_generator.py (reproducibility + rule invariants on generated data)
                test_anomalies.py (labels isolated, no leakage, all planted issues detected)
+               test_validate.py (clean passes, planted = EXPECTED, real bugs FAIL, CSV round trip)
 docs/          worked_example.md
 ai_usage/      prompt history and AI-use disclosure
 ```
@@ -150,6 +185,6 @@ ai_usage/      prompt history and AI-use disclosure
 - [x] Synthetic generator (20,000 customers / 100,000 orders / ~300,000 points txns, fixed seed, scale parameter)
 - [x] Labelled anomaly injection + separate `ground_truth.csv`
 - [x] Anomaly detector scored against ground truth (precision / recall)
-- [ ] Validation suite (PK/FK, enums, dates, reconciliation, lifecycle, duplicates)
+- [x] Validation suite (PK/FK, enums, dates, reconciliation, lifecycle, duplicates)
 - [ ] Export CSV / JSON / SQLite + SQL, manifest with checksums, reproducibility check
 - [ ] Data dictionary and ER diagram

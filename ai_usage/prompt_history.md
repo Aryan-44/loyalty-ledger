@@ -37,3 +37,8 @@ typed by me, in order. Responses are not included (optional per the FAQ).
 
 15. Start anomalies next
 16. Yes, commit it
+
+## Session 1 (cont.): validation suite
+
+17. Start validation next
+18. Yes, commit it

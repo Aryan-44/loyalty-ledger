@@ -1,11 +1,33 @@
-"""Write engine tables to disk."""
+"""Write engine tables to disk, and read them back with their types."""
 import csv
 import json
+import types
+import typing
 from dataclasses import fields
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
+from . import models
 from .engine import LoyaltyEngine
+
+TABLE_MODELS = {
+    "tiers": models.Tier,
+    "rules": models.Rule,
+    "rewards": models.Reward,
+    "customers": models.Customer,
+    "loyalty_accounts": models.LoyaltyAccount,
+    "orders": models.Order,
+    "order_lines": models.OrderLine,
+    "order_returns": models.OrderReturn,
+    "redemptions": models.Redemption,
+    "expiry_batches": models.ExpiryBatch,
+    "points_transactions": models.PointsTransaction,
+    "lot_allocations": models.LotAllocation,
+    "transaction_rules": models.TransactionRule,
+    "tier_changes": models.TierChange,
+    "exceptions": models.ExceptionRecord,
+}
 
 
 def tables(engine: LoyaltyEngine) -> dict[str, list]:
@@ -53,10 +75,32 @@ def write_rows(rows: list, path: Path, row_type=None) -> None:
 def write_csv(engine: LoyaltyEngine, out_dir: Path) -> dict[str, int]:
     counts = {}
     for name, rows in tables(engine).items():
-        if rows:
-            write_rows(rows, out_dir / f"{name}.csv")
+        write_rows(rows, out_dir / f"{name}.csv", TABLE_MODELS[name])
         counts[name] = len(rows)
     return counts
+
+
+def _parser(annotation):
+    """Turn a dataclass field annotation into a function str -> typed value."""
+    args = typing.get_args(annotation)
+    optional = isinstance(annotation, types.UnionType) and type(None) in args
+    base = next(a for a in args if a is not type(None)) if optional else annotation
+    convert = {int: int, Decimal: Decimal, datetime: datetime.fromisoformat,
+               bool: lambda s: s == "true"}.get(base, str)
+    if optional:
+        return lambda s: None if s == "" else convert(s)
+    return convert
+
+
+def read_rows(path: Path, row_type) -> list:
+    hints = typing.get_type_hints(row_type)
+    parsers = {f.name: _parser(hints[f.name]) for f in fields(row_type)}
+    with open(path, newline="", encoding="utf-8") as fh:
+        return [row_type(**{k: parsers[k](v) for k, v in rec.items()}) for rec in csv.DictReader(fh)]
+
+
+def read_tables(data_dir: Path) -> dict[str, list]:
+    return {name: read_rows(data_dir / f"{name}.csv", model) for name, model in TABLE_MODELS.items()}
 
 
 def write_json(rows: list, path: Path) -> None:
