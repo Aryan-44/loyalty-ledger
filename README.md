@@ -4,8 +4,9 @@ Accrue, redeem, expire and reverse loyalty points with a fully auditable,
 append-only ledger, and generate a large, reproducible synthetic dataset from
 the same rules.
 
-> Status: **work in progress.** Rules engine and synthetic generator are done
-> and tested. Anomaly injection, validation and full export are next (see Roadmap).
+> Status: **work in progress.** Rules engine, synthetic generator, labelled
+> anomalies and detector are done and tested. Full validation suite and
+> JSON/SQL export are next (see Roadmap).
 
 ## Quick start
 
@@ -18,7 +19,7 @@ pip install -e . pytest         # editable install: makes `import loyalty` work 
 python -m pytest -q
 ```
 
-Generate data (CSV files land in `out/<scale>/`):
+Generate data:
 
 ```bash
 python -m loyalty.cli generate --scale starter            # 2,000 customers / 10,000 orders
@@ -26,7 +27,18 @@ python -m loyalty.cli generate --scale full               # 20,000 customers / 1
 python -m loyalty.cli generate --scale full --seed 42     # different seed
 ```
 
-`--customers` / `--orders` override the preset sizes; `--seed` defaults to `20261022`.
+`--customers` / `--orders` override the preset sizes; `--seed` defaults to `20261022`;
+`--anomalies-per-type N` sets how many issues are planted (default customers/200, min 5);
+`--no-anomalies` produces clean data only.
+
+Output layout - the answer key is deliberately kept apart from the data:
+
+```
+out/<scale>/data/*.csv                       the dataset (15 tables)
+out/<scale>/labels/ground_truth.csv|.json    planted issues (never joined into data)
+out/<scale>/reports/findings.csv             what the detector flagged
+out/<scale>/reports/detection_metrics.json   precision / recall per issue type
+```
 
 ## How it works
 
@@ -39,7 +51,11 @@ engine.py     ("Part B")  applies config.py rules, decides every OUTCOME:
               points, reversals, approvals/rejections, expiry, tiers
         |
         v
-export.py     one CSV per table
+anomalies.py  plants labelled bugs on a few accounts -> ground_truth
+        |
+        v
+export.py     data/ and labels/ written separately
+detect.py     finds issues from data/ only, scored against labels/
 ```
 
 The split matters: randomness only decides behaviour (who buys what, when,
@@ -72,6 +88,29 @@ Core design decisions:
 | Rules are data in `config.py`, not hard-coded | An analyst can change rates/thresholds without touching logic |
 | Events must arrive in time order (engine refuses otherwise) | Expiry and tier windows depend on time |
 
+### Planted anomalies and how they are detected
+
+Valid data is generated first; anomalies are injected afterwards. Each one
+imitates a realistic bug, touches only one target account, and is the only
+issue on that account (targets are disjoint, and accounts with legitimate
+exceptions are excluded). Running balances (`balance_after`) are kept
+consistent so nothing unrelated is corrupted.
+
+| Issue type | How it is planted | How the detector finds it (data only) |
+|---|---|---|
+| `BALANCE_MISMATCH` | Cached `points_balance` shifted by +/-10..500; ledger untouched | Stored balance != sum of ledger points |
+| `OVER_REDEMPTION` | A redemption correctly rejected for insufficient points is flipped to APPROVED and debited (race-condition bug) | Redemption debit not fully backed by `lot_allocations` |
+| `RETURN_NOT_REVERSED` | A return is recorded but its REVERSAL row is never posted | Points owed back from `order_lines.returned_qty` > reversed points |
+| `DOUBLE_EXPIRY` | Next month's expiry job expires an already-expired lot again | A lot with 2+ EXPIRY allocations or consumed beyond its size |
+| `TIER_ON_GROSS_SPEND` | Final tier review uses gross order totals (tax, shipping, gift cards, returns) and upgrades the member | Tier change disagrees with tier recomputed from qualifying spend and configured thresholds |
+
+**Evaluation:** findings are matched to ground truth on `(issue_type, account_id)`
+and reported as precision / recall per type. The detector scores 1.0 / 1.0 on
+the generated data, and finds **nothing** on clean data. That is expected for
+a rule-based detector checking deterministic rule violations: its job here is
+to prove every planted issue is observable from the data alone and that the
+baseline is clean. It would not catch issues outside these five rules.
+
 ## Business rules and assumptions
 
 - Qualifying spend = line price x quantity - line discount, for eligible
@@ -96,9 +135,11 @@ Core design decisions:
 ## Project layout
 
 ```
-src/loyalty/   config.py, models.py, ids.py, engine.py, generator.py, export.py, cli.py
+src/loyalty/   config.py, models.py, ids.py, engine.py, generator.py,
+               anomalies.py, detect.py, export.py, cli.py
 tests/         test_engine_example.py (hand-worked example + edge cases)
                test_generator.py (reproducibility + rule invariants on generated data)
+               test_anomalies.py (labels isolated, no leakage, all planted issues detected)
 docs/          worked_example.md
 ai_usage/      prompt history and AI-use disclosure
 ```
@@ -107,8 +148,8 @@ ai_usage/      prompt history and AI-use disclosure
 
 - [x] Rules engine with hand-verified worked example
 - [x] Synthetic generator (20,000 customers / 100,000 orders / ~300,000 points txns, fixed seed, scale parameter)
-- [ ] Labelled anomaly injection + separate `ground_truth.csv`
+- [x] Labelled anomaly injection + separate `ground_truth.csv`
+- [x] Anomaly detector scored against ground truth (precision / recall)
 - [ ] Validation suite (PK/FK, enums, dates, reconciliation, lifecycle, duplicates)
-- [ ] Anomaly detector scored against ground truth (precision / recall)
 - [ ] Export CSV / JSON / SQLite + SQL, manifest with checksums, reproducibility check
 - [ ] Data dictionary and ER diagram

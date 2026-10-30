@@ -1,5 +1,6 @@
 """Write engine tables to disk."""
 import csv
+import json
 from dataclasses import fields
 from datetime import datetime
 from pathlib import Path
@@ -38,18 +39,27 @@ def _cell(value):
     return str(value)
 
 
+def write_rows(rows: list, path: Path, row_type=None) -> None:
+    """One CSV for a list of dataclass rows (header written even when empty)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    columns = [f.name for f in fields(row_type or rows[0])]
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(columns)
+        for row in rows:
+            writer.writerow([_cell(getattr(row, c)) for c in columns])
+
+
 def write_csv(engine: LoyaltyEngine, out_dir: Path) -> dict[str, int]:
-    out_dir.mkdir(parents=True, exist_ok=True)
     counts = {}
     for name, rows in tables(engine).items():
-        if not rows:
-            counts[name] = 0
-            continue
-        columns = [f.name for f in fields(rows[0])]
-        with open(out_dir / f"{name}.csv", "w", newline="", encoding="utf-8") as fh:
-            writer = csv.writer(fh)
-            writer.writerow(columns)
-            for row in rows:
-                writer.writerow([_cell(getattr(row, c)) for c in columns])
+        if rows:
+            write_rows(rows, out_dir / f"{name}.csv")
         counts[name] = len(rows)
     return counts
+
+
+def write_json(rows: list, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = [{f.name: _cell(getattr(r, f.name)) for f in fields(r)} for r in rows]
+    path.write_text(json.dumps(data, indent=1), encoding="utf-8")

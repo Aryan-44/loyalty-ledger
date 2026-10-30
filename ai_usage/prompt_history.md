@@ -32,3 +32,8 @@ typed by me, in order. Responses are not included (optional per the FAQ).
 13. kummithiaryan@gmail.com, this is my mail
     Yes, start generator
 14. Yes, commit it
+
+## Session 1 (cont.): anomalies, ground truth and detection
+
+15. Start anomalies next
+16. Yes, commit it
