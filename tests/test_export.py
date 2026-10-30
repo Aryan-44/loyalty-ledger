@@ -37,6 +37,14 @@ def test_different_seed_changes_the_data(built, tmp_path):
     assert first["files"]["data/points_transactions.csv"] != other["files"]["data/points_transactions.csv"]
 
 
+def test_text_outputs_use_lf_on_every_os(built):
+    """Checksums must not depend on the OS: only CSV (RFC 4180) uses CRLF."""
+    out, _ = built
+    for path in out.rglob("*"):
+        if path.suffix in (".json", ".md", ".sql"):
+            assert b"\r\n" not in path.read_bytes(), path.name
+
+
 def test_manifest_describes_how_to_regenerate(built):
     out, _ = built
     manifest = json.loads((out / "manifest.json").read_text())

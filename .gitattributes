@@ -1,0 +1,3 @@
+# Same bytes on every OS: source files always check out with LF line endings.
+* text=auto eol=lf
+*.db binary

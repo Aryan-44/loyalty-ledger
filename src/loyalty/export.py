@@ -113,10 +113,15 @@ def _json_value(value):
     return _cell(value)
 
 
-def write_json(rows: list, path: Path) -> None:
+def write_text(path: Path, text: str) -> None:
+    """UTF-8 with "\\n" line endings on every OS, so checksums match across platforms."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def write_json(rows: list, path: Path) -> None:
     data = [{f.name: _json_value(getattr(r, f.name)) for f in fields(r)} for r in rows]
-    path.write_text(json.dumps(data, indent=1), encoding="utf-8")
+    write_text(path, json.dumps(data, indent=1))
 
 
 def write_json_tables(data: dict[str, list], out_dir: Path) -> None:
@@ -225,5 +230,5 @@ def write_manifest(out: Path, params: dict, data: dict[str, list], labels: list)
         "labels": {"ground_truth_rows": len(labels)},
         "files": files,
     }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    write_text(out / "manifest.json", json.dumps(manifest, indent=2))
     return manifest

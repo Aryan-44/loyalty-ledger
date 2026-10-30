@@ -187,6 +187,12 @@ the actual deliverable, not just in-memory objects.
   `reproducibility_report.json`. Verified at full scale: all 40 files (~0.8 GB,
   including the 205 MB SQLite database and 284 MB SQL seed script) are
   byte-identical across two runs.
+- **Same bytes on every OS:** all JSON/Markdown/SQL outputs are written with
+  `\n` line endings and CSV with `\r\n` (RFC 4180) regardless of platform, and
+  `.gitattributes` checks source out with LF. Found by the fresh-clone check:
+  git on Windows had converted `schema.sql` to CRLF on checkout, so a copied
+  file's checksum differed from the original folder's; after the fix a fresh
+  clone and the original folder produce 40/40 identical files.
 
 ## Business rules and assumptions
 

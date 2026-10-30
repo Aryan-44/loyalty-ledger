@@ -59,3 +59,8 @@ typed by me, in order. Responses are not included (optional per the FAQ).
 ## Session 1 (cont.): data dictionary and ER diagram
 
 25. Yes, start docs
+
+## Session 1 (cont.): fresh-clone check
+
+26. Yes, run the check
+27. Yes, commit & push
