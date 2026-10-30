@@ -4,10 +4,14 @@ Accrue, redeem, expire and reverse loyalty points with a fully auditable,
 append-only ledger, and generate a large, reproducible synthetic dataset from
 the same rules.
 
-> Status: **work in progress.** Rules engine, generator, labelled anomalies,
-> detector, validation suite, CSV/JSON/SQL export, checksum manifest and
-> reproducibility check are done and tested. Data dictionary and ER diagram
-> are next (see Roadmap).
+> Status: every part of the brief is implemented and tested (see
+> [How the brief is covered](#how-the-brief-is-covered)).
+
+**Documentation:** [data model + ER diagram](docs/data_model.md) ·
+[data dictionary](docs/data_dictionary.md) ·
+[worked example](docs/worked_example.md) ·
+[SQL schema](src/loyalty/schema.sql) ·
+[AI usage](ai_usage/AI_USAGE.md) · [prompt history](ai_usage/prompt_history.md)
 
 ## Quick start
 
@@ -215,16 +219,46 @@ tests/         test_engine_example.py (hand-worked example + edge cases)
                test_anomalies.py (labels isolated, no leakage, all planted issues detected)
                test_validate.py (clean passes, planted = EXPECTED, real bugs FAIL, CSV round trip)
                test_export.py (byte-identical reruns, SQLite constraints, SQL replay, tamper detection)
-docs/          worked_example.md
+               test_docs.py (every column documented, cited check IDs exist, ER covers all tables)
+docs/          data_model.md (ER diagram, cardinality, lifecycles), data_dictionary.md,
+               worked_example.md
 ai_usage/      prompt history and AI-use disclosure
 ```
 
-## Roadmap
+## How the brief is covered
 
-- [x] Rules engine with hand-verified worked example
-- [x] Synthetic generator (20,000 customers / 100,000 orders / ~300,000 points txns, fixed seed, scale parameter)
-- [x] Labelled anomaly injection + separate `ground_truth.csv`
-- [x] Anomaly detector scored against ground truth (precision / recall)
-- [x] Validation suite (PK/FK, enums, dates, reconciliation, lifecycle, duplicates)
-- [x] Export CSV / JSON / SQLite + SQL, manifest with checksums, reproducibility check
-- [ ] Data dictionary and ER diagram
+| Brief requirement | Where | Proof |
+|---|---|---|
+| Accrue, redeem, expire, reverse with an auditable ledger | `engine.py`; append-only `points_transactions` + `lot_allocations` | `test_engine_example.py`, checks AR-04..AR-10, LC-03, LC-04 |
+| Multiple related entities, PK/FK, cardinality, optional links, effective dates, lifecycles, bridge tables | `schema.sql`, [data_model.md](docs/data_model.md) | SQLite load with constraints ON; PK-*, FK-* checks |
+| Conditional rules | tier earn rates, category exclusion/multiplier with effective dates, reward tier gates, redemption checks | AR-02 recomputes every line's points from `rules` |
+| Exception path | rejected redemptions; return after points were spent -> negative balance + `exceptions` row + debt repaid by next accrual | `test_return_after_points_spent_creates_debt_and_exception` |
+| Step 1 - data dictionary | [data_dictionary.md](docs/data_dictionary.md) | `test_docs.py` keeps it in sync with the code |
+| Steps 2-3 - parents first, domain logic, deterministic IDs | `generator.py` -> `engine.py`, `ids.py` | ID-01..ID-03, FK-* |
+| Step 4 - 20k customers / 100k orders / 300k txns, refunds, partial returns, expiry, tier changes, concurrent redemptions, fixed seed, scale parameter | `generator.py`, `--scale`, `--seed` | full run: 20,000 / 100,000 / 303,391; `test_edge_cases_are_present` |
+| Step 5 - labelled edge cases (5 types) | `anomalies.py` | `test_anomalies.py` |
+| Step 6 - derived values from source records | balances, totals, tiers, statuses all computed by the engine | AR-01, AR-02, AR-04, LC-01, LC-06 |
+| Step 7 - separate ground truth, no leakage | `labels/ground_truth.csv` and `.json` | `test_labels_never_leak_into_data_tables` |
+| Step 8 - validation | `validate.py`, 75 checks | full run: 69 PASS, 6 EXPECTED, 0 FAIL |
+| Step 9 - CSV/JSON/SQL, README, dictionary, command, seed, manifest, validation summary | `export.py`, `out/<scale>/` | `test_export.py` |
+| Step 10 - regenerate twice, compare | `reproduce` command | full scale: 40 files byte-identical |
+| Measurable outputs / evaluation metrics | detector precision/recall; KPIs printed by `generate` | 500/500 found, 0 false positives |
+
+## Limitations and next steps
+
+- **Single-threaded simulation.** Concurrency is modelled as same-second and
+  retried requests processed in order; a production system would need
+  database transactions/row locks around the balance check.
+- **Rule-based detector.** It is exact for the five documented issue types and
+  would not find other kinds of corruption; a scored or ML detector could be
+  evaluated against the same ground truth.
+- **Tier downgrades are checked monthly**, not daily, and points are earned at
+  the tier held at purchase time (documented assumptions).
+- **Behaviour is plausible, not calibrated** against real retail data;
+  distributions (segments, seasonality, return rates) are documented
+  assumptions in `generator.py`.
+- **Single currency / time zone** (INR, naive local time).
+- **Performance:** pure Python. Generating + validating the full dataset took
+  ~1.5 minutes on the development laptop (CSV only); writing every format
+  adds a few minutes and ~0.8 GB. `--scale starter` runs in seconds. Faster
+  generation would need vectorised generation or a compiled engine.

@@ -55,3 +55,7 @@ typed by me, in order. Responses are not included (optional per the FAQ).
 22. Yes, start export
 23. What are you doing now?
 24. Yes, commit & push
+
+## Session 1 (cont.): data dictionary and ER diagram
+
+25. Yes, start docs
