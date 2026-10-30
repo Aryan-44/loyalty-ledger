@@ -42,3 +42,10 @@ typed by me, in order. Responses are not included (optional per the FAQ).
 
 17. Start validation next
 18. Yes, commit it
+
+## Session 1 (cont.): review and publishing
+
+19. Before that can we go through, that what we have done upto now clearly. So that
+    if they ask any questions i'll able to answer
+20. What next?
+21. https://github.com/Aryan-44/loyalty-ledger *(asked to connect and push)*
