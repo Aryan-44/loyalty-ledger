@@ -64,3 +64,11 @@ typed by me, in order. Responses are not included (optional per the FAQ).
 
 26. Yes, run the check
 27. Yes, commit & push
+
+## Session 1 (cont.): wrap-up before submission
+
+28. So present my project is completed or is anything still left
+29. What are left in this project right now, I'm near to deadline and I need to
+    submit the repo link
+30. No worries you only write that sentences and tell me after that
+    *(asked the AI to draft AI_USAGE.md)*
