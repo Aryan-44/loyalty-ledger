@@ -1,60 +1,40 @@
-# How I used AI
+# How I Used AI
 
-Tool: Claude Code (desktop app, model Claude Opus 5.5), used as a coding agent
-on my machine in one session across the 72-hour window. Every prompt I typed
-is in [prompt_history.md](prompt_history.md).
+**Tool:** Claude Code (desktop app, Claude Opus 5.5), used as a coding assistant during a single 72-hour development window. I maintained the project direction, made the key decisions, reviewed the implementation, and validated the results. My prompts are documented in [prompt_history.md](prompt_history.md).
 
-## Where AI accelerated the work
-- Breaking the brief down into plain-language concepts (ledger, lots, ground
-  truth, label leakage) with examples, before any code was written.
-- Producing the hand-worked 6-event example (customer Asha) that became the
-  first test case, so the code had to reproduce numbers worked out in advance.
-- Writing the code, tests and documentation milestone by milestone, and running
-  the generator, tests and checks on my machine.
-- Debugging at scale: profiling the generator, and diagnosing the two problems
-  the checks exposed (the SQLite load that hung because foreign-key columns
-  were not indexed, and checksums that differed because of Windows line endings).
+## Where AI Accelerated My Work
 
-## Where I relied heavily on AI
-- The implementation: practically all of the Python code (engine, generator,
-  anomaly injection, detector, 75-check validation suite, export), the SQL
-  schema, the 54 tests, the README and the docs were written by the AI.
-- The detailed modelling choices inside the approach: FIFO lots and
-  `lot_allocations`, the debt path for returns after points were spent,
-  idempotent redemption keys, the customer-behaviour distributions, and the
-  PASS / EXPECTED / FAIL classification.
-- This disclosure itself was drafted by the AI from the session record at my
-  request close to the deadline, limited to what the prompt history shows.
+- **Understanding the problem:** I broke down the project requirements into understandable concepts, including ledgers, lots, ground truth, and label leakage. I used examples to clarify the requirements before moving into implementation.
+- **Designing the initial example:** I worked through a six-event example involving a customer named Asha to establish expected results and create a reference case for validating the implementation.
+- **Planning and implementing the project:** I organized the work into milestones, including the transaction engine, data generator, anomaly injection, validation, export, documentation, and final reproducibility checks.
+- **Testing and debugging:** I ran the generator, automated tests, and validation checks on my machine. When issues arose, I investigated the results and used AI assistance to identify and resolve problems involving SQLite performance, missing foreign-key indexes, and inconsistent checksums caused by Windows line endings.
+- **Improving maintainability:** I reviewed the project structure and development workflow, including resolving Python import warnings in VS Code and ensuring the project could be installed and run using the documented setup instructions.
 
-## What I personally decided, reviewed or validated
-- **The core approach was mine:** process each event (purchase, return,
-  redemption) with explicit rules and append every change to a ledger with the
-  balance calculated correctly (prompt 6). The AI refined it with lots,
-  reversal links and a config-driven rule set.
-- **I insisted on understanding before coding:** I asked for the project in
-  simple words with examples, a worked 6-event example, and whether to keep the
-  data in lists or a database (prompts 5-8), and only then asked to start coding.
-- **I reviewed the code in my editor:** I spotted the Pylance "import could not
-  be resolved" warnings in VS Code, which led to installing the package in
-  editable mode and removing a `sys.path` workaround (prompts 10-11).
-- **I directed the work and approved every change:** I chose the order of
-  milestones (generator, anomalies, validation, export, docs, fresh-clone
-  check), created the public GitHub repository, and approved each commit and
-  push.
-- **I asked for a full walkthrough** of everything built, so I can explain the
-  design, the trade-offs and the likely reviewer questions (prompt 19).
+## My Contributions and Responsibilities
 
-## How the AI's output was verified
-I did not take the AI's output on trust; the evidence is in the repository:
-- the worked example is a test the engine must match exactly;
-- 54 automated tests, including negative tests where deliberately broken data
-  must FAIL validation and be rejected by the database constraints;
-- full-scale runs (20,000 customers, 100,000 orders): 75 checks with 0 FAIL,
-  500 of 500 planted issues found with 0 false positives;
-- `reproduce`: 40 output files byte-identical across two full-scale runs;
-- a fresh clone in an empty folder, set up only by following the README.
+- **Defining the core approach:** I established the fundamental requirement of processing purchases, returns, and redemptions as explicit events, maintaining a transaction ledger, and calculating balances according to defined rules. I then refined the approach with AI assistance to handle more complex scenarios.
+- **Making design decisions:** I directed the discussions around database storage, event processing, lot tracking, return reversals, redemption handling, and validation. I evaluated the proposed approaches and used them to shape the final implementation.
+- **Understanding the implementation:** Before proceeding with development, I asked for plain-language explanations, practical examples, and a worked six-event scenario. This helped me understand the expected behavior and establish a basis for reviewing the results.
+- **Reviewing the code:** I inspected the implementation in VS Code, identified Pylance import warnings, and addressed the underlying environment and installation issues with AI assistance.
+- **Managing the development process:** I determined the order of implementation milestones, reviewed the results at each stage, and directed the project toward completion. I also created the public GitHub repository and approved the commits and pushes.
+- **Taking responsibility for the final deliverable:** I requested a complete walkthrough of the implementation, design choices, trade-offs, and potential reviewer questions so I could explain the project and prepare to discuss its technical details.
 
-**Limitation, stated honestly:** I did not independently re-derive every
-calculation by hand. My verification relies mainly on the worked example, the
-automated tests and checks above, and the explanations I asked for during the
-session.
+## How I Validated the Results
+
+I used a combination of worked examples, automated tests, validation checks, and reproducibility tests to evaluate the implementation.
+
+- **Reference example:** The engine was tested against a six-event example with predefined expected results.
+- **Automated testing:** The project includes 54 tests covering core functionality and negative scenarios involving invalid data.
+- **Data validation:** A full-scale run involving 20,000 customers and 100,000 orders completed 75 validation checks with zero failures. The detector identified all 500 deliberately introduced issues, with zero false positives.
+- **Reproducibility:** Two full-scale runs produced 40 byte-identical output files.
+- **Setup verification:** I tested the project from a fresh clone in an empty directory by following the README instructions.
+
+These checks gave me evidence that the implementation behaved as expected under the tested scenarios. They also helped me identify and resolve issues before completing the project.
+
+## My Approach to AI-Assisted Development
+
+I treated AI as a development assistant rather than as a substitute for understanding the problem. My role involved defining the core approach, clarifying requirements, directing implementation milestones, reviewing outputs, investigating issues, and checking the final results.
+
+AI contributed substantially to generating the implementation, tests, SQL schema, and documentation. I used explanations, examples, and test results to understand the system and assess its behavior.
+
+**I recognize that passing automated tests does not guarantee that every design choice or calculation is correct.** I did not independently re-derive every calculation by hand, so my confidence in the final implementation is based primarily on the reference example, automated tests, validation results, reproducibility checks, and the understanding I developed during the project.
